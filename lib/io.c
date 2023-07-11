@@ -85,6 +85,58 @@ static int libvhost_readwritev(struct libvhost_ctrl* ctrl, int q_idx, uint64_t o
     return 0;
 }
 
+
+static int libvhost_discardv(struct libvhost_ctrl* ctrl, int q_idx, uint64_t offset, struct iovec* iov, int iovcnt,
+                               void* opaque) {
+    struct libvhost_io_task* task;
+    struct libvhost_io_task* out_task;
+    struct libvhost_virt_queue* vq = &ctrl->vqs[q_idx];
+    task = virtring_get_free_task(vq);
+    if (!task) {
+        printf("NO MORE TASK\n");
+        exit(EXIT_FAILURE);
+        return -1;
+    }
+    CHECK(task->used == true);
+    CHECK(task->finished == false);
+    task->cb = task_done;
+    task->opaque = opaque;
+    // TODO: check the offset, len that should be aligned to 512/4k block size.
+    task->offset = offset;
+    memcpy(task->iovs, iov, sizeof(struct iovec) * iovcnt);
+    task->iovcnt = iovcnt;
+    task->q_idx = q_idx;
+    task->type = VHOST_IO_DISCARD;
+
+    blk_task_submit(vq, task);
+
+    while (!task->finished) {
+        if (blk_task_getevents(vq, &out_task) == 0) {
+            continue;
+        }
+        if (task != out_task) {
+            virtring_free_task(out_task);
+            printf("[WARN] io is out-of-order, task: %p, out_task: %p\n", task, out_task);
+        }
+    }
+    virtring_free_task(task);
+    return 0;
+}
+
+typedef struct virtio_blk_discard_write_zeroes vb_dwz;
+
+int libvhost_discard(struct libvhost_ctrl* ctrl, int q_idx, uint64_t offset,
+                     uint64_t sector, uint32_t num_sectors) {
+    vb_dwz* discard_buf = (vb_dwz*)libvhost_malloc(ctrl, sizeof(vb_dwz));
+    CHECK(discard_buf);
+    discard_buf->sector = sector;
+    discard_buf->num_sectors = num_sectors;
+    discard_buf->flags = 0;
+
+    struct iovec iov = {.iov_base = discard_buf, .iov_len = sizeof(vb_dwz)};
+    return libvhost_discardv(ctrl, q_idx, offset, &iov, 1, NULL);
+}
+
 int libvhost_read(struct libvhost_ctrl* ctrl, int q_idx, uint64_t offset, char* buf, int len) {
     struct iovec iov = {.iov_base = buf, .iov_len = len};
     return libvhost_readwritev(ctrl, q_idx, offset, &iov, 1, false, false, NULL);

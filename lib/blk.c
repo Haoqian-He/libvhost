@@ -62,6 +62,9 @@ void blk_task_submit(struct libvhost_virt_queue* vq, struct libvhost_io_task* ta
         case VHOST_IO_READ:
             req->out_hdr.type = VIRTIO_BLK_T_IN;
             break;
+        case VHOST_IO_DISCARD:
+            req->out_hdr.type = VIRTIO_BLK_T_DISCARD;
+            break;
         default:
             printf("blk_task_submit unknow io type\n");
             exit(EXIT_FAILURE);
