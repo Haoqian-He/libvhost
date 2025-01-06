@@ -97,6 +97,10 @@ struct libvhost_virt_queue {
     struct libvhost_ctrl* ctrl;
     int idx;
     int size;
+
+    /* Host supports indirect buffers */
+    bool indirect;
+
     /* Must be [0, 2^16 - 1] */
     uint16_t last_used_idx;
     int kickfd;
@@ -114,6 +118,7 @@ struct libvhost_virt_queue {
 void vhost_vq_init(struct libvhost_virt_queue* vq, struct libvhost_ctrl* ctrl);
 void vhost_vq_free(struct libvhost_virt_queue* vq);
 void virtring_add(struct libvhost_virt_queue* vq, struct iovec* iovec, int num_out, int num_in, void* data);
+void virtring_add_indirect(struct libvhost_virt_queue* vq, struct iovec* iovec, int num_out, int num_in, void* data);
 struct libvhost_io_task* virtqueue_get_task(struct libvhost_virt_queue* vq);
 void virtqueue_free_task(struct libvhost_io_task* task);
 
