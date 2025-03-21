@@ -152,7 +152,7 @@ int test_async_io(struct libvhost_ctrl* ctrl) {
     int idx;
     int ret = 0;
     int buf_size = 1024;
-    const int depth = 1024;
+    const int depth = 128;
     const int max_round = 100;
     struct test_iov r_iov[depth];
     struct test_iov w_iov[depth];
@@ -325,7 +325,7 @@ int main(int argc, char** argv) {
         goto fail_ctrl;
     }
 
-    ret = libvhost_ctrl_add_virtqueue(ctrl, 4, 1024);
+    ret = libvhost_ctrl_add_virtqueue(ctrl,1, 1024);
     if (ret != 0) {
         printf("libvhost_ctrl_add_virtqueue failed: %d\n", ret);
         goto fail_ctrl;

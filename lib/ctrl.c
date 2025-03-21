@@ -72,8 +72,7 @@ ring upon receiving VHOST_USER_GET_VRING_BASE.
 #define DEFAULT_VHOST_FEATURES                                                                       \
     ((1ULL << VIRTIO_F_VERSION_1) | (1ULL << VIRTIO_F_NOTIFY_ON_EMPTY) | \
      (1ULL << VIRTIO_RING_F_EVENT_IDX) | (1ULL << VIRTIO_RING_F_INDIRECT_DESC)) |                    \
-        (1ULL << VHOST_USER_F_PROTOCOL_FEATURES)
-//  (1ULL << VIRTIO_F_RING_PACKED)
+     (1ULL << VHOST_USER_F_PROTOCOL_FEATURES) | (1ULL << VIRTIO_F_RING_PACKED)
 
 #define DEFAULT_VHOST_PROTOCOL_FEATURES                                                               \
     ((1ULL << VHOST_USER_PROTOCOL_F_MQ) | (1ULL << VHOST_USER_PROTOCOL_F_LOG_SHMFD) |                 \
@@ -602,6 +601,33 @@ static int setup_inflight(struct libvhost_virt_queue* vq) {
     return 0;
 }
 
+static uint16_t virtio_queue_get_last_used_idx(struct libvhost_virt_queue* vq) {
+    if (vq->packed_ring) {
+        unsigned int avail;
+        avail = vq->last_used_idx;
+        avail |= ((uint16_t)vq->packed.avail_wrap_counter) << 15;
+        return avail;
+    } else {
+        return vq->last_used_idx;
+    }
+}
+
+static void set_vhost_vring_addr(struct libvhost_virt_queue *vq, struct VhostVringAddr* addr) {
+    addr->index = vq->idx;
+    if (vq->packed_ring) {
+        addr->desc_user_addr = (uint64_t)vq->packed.vring.desc;
+        addr->avail_user_addr = (uint64_t)vq->packed.vring.driver;
+        addr->used_user_addr = (uint64_t)vq->packed.vring.device;
+    } else {
+        addr->desc_user_addr = (uint64_t)vq->vring.desc;
+        addr->avail_user_addr = (uint64_t)vq->vring.avail;
+        addr->used_user_addr = (uint64_t)vq->vring.used;
+        // log_guest_addr records the used ring physical address, here gpa == hva.
+        addr->log_guest_addr = (uint64_t)vq->vring.used;
+        addr->flags = (1 << VHOST_VRING_F_LOG);
+    }
+}
+
 static int vhost_enable_vq(struct libvhost_ctrl* ctrl, struct libvhost_virt_queue* vq) {
     VhostVringState state;
 
@@ -622,7 +648,7 @@ static int vhost_enable_vq(struct libvhost_ctrl* ctrl, struct libvhost_virt_queu
     }
     INFO("  VHOST_USER_SET_VRING_NUM idx: %d num: %d\n", state.index, state.num);
     state.index = vq->idx;
-    state.num = vq->last_used_idx;
+    state.num = virtio_queue_get_last_used_idx(vq);
     // Tell the backend that the available ring last used index.
     if (vhost_ioctl(ctrl, VHOST_USER_SET_VRING_BASE, &state) != 0) {
         ERROR("Unable to set vring base\n");
@@ -631,14 +657,7 @@ static int vhost_enable_vq(struct libvhost_ctrl* ctrl, struct libvhost_virt_queu
     INFO("  VHOST_USER_SET_VRING_BASE idx: %d num: %d\n", state.index, state.num);
 
     VhostVringAddr addr;
-    addr.index = vq->idx;
-    addr.desc_user_addr = (uint64_t)vq->vring.desc;
-    addr.avail_user_addr = (uint64_t)vq->vring.avail;
-    addr.used_user_addr = (uint64_t)vq->vring.used;
-    // log_guest_addr records the used ring physical address, here gpa == hva.
-    addr.log_guest_addr = (uint64_t)vq->vring.used;
-
-    addr.flags = (1 << VHOST_VRING_F_LOG);
+    set_vhost_vring_addr(vq, &addr);
     if (vhost_ioctl(ctrl, VHOST_USER_SET_VRING_ADDR, &addr) != 0) {
         ERROR("Unable to set vring addr\n");
         return -1;
@@ -684,7 +703,7 @@ int libvhost_ctrl_add_virtqueue(struct libvhost_ctrl* ctrl, int num_io_queues, i
         struct libvhost_virt_queue* vq = &ctrl->vqs[i];
         vq->idx = i;
         vq->size = size;
-        vhost_vq_init(vq, ctrl);
+        vhost_create_virtqueue(vq, ctrl);
         if ((ret = vhost_enable_vq(ctrl, vq)) != 0) {
             return ret;
         }

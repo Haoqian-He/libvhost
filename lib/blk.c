@@ -42,7 +42,8 @@ static int blk_add_req(struct libvhost_virt_queue* vq, struct libvhost_virtio_bl
     // put status.
     iovec_init(&iovs[num_out + num_in++], &vbr->status, sizeof(vbr->status));
 
-    virtring_add(vq, iovs, num_out, num_in, data);
+    virtqueue_add(vq, iovs, num_out, num_in, data);
+    // virtring_add(vq, iovs, num_out, num_in, data);
     return 0;
 }
 

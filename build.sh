@@ -7,7 +7,8 @@ type=${TYPE:-asan}
 cmake -B build -GNinja -DCMAKE_BUILD_TYPE=$type -DCMAKE_INSTALL_PREFIX=build
 
 # Usage: main -p <socket_path> [-s] [-t <target>] [-h]
-ninja -C build -v && build/examples/vhost_test -p /var/lib/zbs/aurorad/vhost-blk.0
+# ninja -C build -v && build/examples/vhost_test -p /var/lib/zbs/aurorad/vhost-blk.0
+ninja -C build -v && build/examples/vhost_test -p /root/spdk-code/spdk-master/tmp/vhost-blk.0
 # for vhost-scsi
 # ninja -C build -v && build/examples/vhost_test -p /var/lib/zbs/aurorad/vhost-blk.0 -s -t 0
 
