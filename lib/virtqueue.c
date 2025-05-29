@@ -201,10 +201,25 @@ void virtring_add(struct libvhost_virt_queue* vq, struct iovec* iovec, int num_o
     wmb();
 }
 
+static int hhq = 0;
 static inline bool more_used(const struct libvhost_virt_queue* vq) {
     rmb();
     // NOTICE: the shared used->idx range is [0, 2^16 -1], not [0, ring_num - 1];
-    return vq->last_used_idx != vq->vring.used->idx;
+    bool ret = vq->last_used_idx != vq->vring.used->idx;
+    if (!ret) {
+        // ==
+        hhq++;
+        if (hhq % 1000 == 0) {
+            ERROR("[HHQ]: %d, last_used_idx: %d, used->idx: %d\n", hhq, vq->last_used_idx, vq->vring.used->idx);
+        }
+        if (hhq > 10000) {
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        // !=
+        hhq = 0;
+    }
+    return ret;
 }
 
 static void reset_desc(struct libvhost_virt_queue* vq, uint16_t head) {
