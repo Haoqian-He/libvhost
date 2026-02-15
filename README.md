@@ -4,7 +4,7 @@
 - [ ] virtio
     - [x] indirect desc support
     - [ ] packed ring support
-    - [ ] interrupt io(eventfd) support
+    - [x] interrupt io(eventfd) support
 - [ ] kernel vhost-scsi support
 - [ ] 超过文件范围的 IO 确认失败
 - [x] 获取后端设备的 block size 和 长度

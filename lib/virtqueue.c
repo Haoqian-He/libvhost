@@ -10,8 +10,10 @@
 #include "libvhost_internal.h"
 #include "libvhost.h"
 #include "utils.h"
+#include <errno.h>
 #include <linux/virtio_blk.h>
 #include <linux/virtio_ring.h>
+#include <poll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -298,4 +300,26 @@ void virtqueue_kick(struct libvhost_virt_queue* vq) {
     uint64_t kick_value = 1;
     printf("kick vq %d\n", vq->idx);
     write(vq->kickfd, &kick_value, sizeof(kick_value));
+}
+
+int virtqueue_wait_callfd(struct libvhost_virt_queue* vq, int timeout_ms) {
+    struct pollfd pfd;
+    uint64_t val;
+    int ret;
+
+    pfd.fd = vq->callfd;
+    pfd.events = POLLIN;
+    pfd.revents = 0;
+
+    ret = poll(&pfd, 1, timeout_ms);
+    if (ret < 0) {
+        return -1;
+    }
+    if (ret == 0) {
+        return -ETIMEDOUT;
+    }
+
+    /* Drain the eventfd counter */
+    read(vq->callfd, &val, sizeof(val));
+    return 0;
 }

@@ -60,6 +60,8 @@ int libvhost_writev(struct libvhost_ctrl* ctrl, int q_idx, uint64_t offset, stru
 int libvhost_submit(struct libvhost_ctrl* ctrl, int q_idx, uint64_t offset, struct iovec* iov, int iovcnt, bool write,
                     void* opaque);
 int libvhost_getevents(struct libvhost_ctrl* ctrl, int q_idx, int min, int nr, VhostEvent* events);
+int libvhost_getevents_interrupt(struct libvhost_ctrl* ctrl, int q_idx, int min, int nr, VhostEvent* events);
+int libvhost_get_queue_callfd(struct libvhost_ctrl* ctrl, int q_idx);
 
 void* libvhost_malloc(struct libvhost_ctrl* ctrl, uint64_t size);
 void libvhost_free(struct libvhost_ctrl* ctrl, void* ptr);

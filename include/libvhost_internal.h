@@ -120,6 +120,7 @@ void virtqueue_free_task(struct libvhost_io_task* task);
 
 void virtqueue_kick(struct libvhost_virt_queue* vq);
 int virtqueue_get(struct libvhost_virt_queue* vq, VhostEvent* event);
+int virtqueue_wait_callfd(struct libvhost_virt_queue* vq, int timeout_ms);
 
 int libvhost_mem_get_memory_fds(struct libvhost_ctrl* ctrl, int* fds, int* size);
 

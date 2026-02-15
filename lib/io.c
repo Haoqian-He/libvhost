@@ -7,6 +7,7 @@
  * This work is licensed under the terms of the GNU GPL, version 2 or later.
  * See the COPYING file in the top-level directory.
  */
+#include <errno.h>
 #include <linux/virtio_blk.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -96,6 +97,27 @@ static int task_getevents(struct libvhost_virt_queue* vq, int min, int nr, Vhost
     return cnt;
 }
 
+static int task_getevents_interrupt(struct libvhost_virt_queue* vq, int min, int nr,
+                                     VhostEvent* events, int timeout_ms) {
+    int cnt = 0;
+    while (cnt < nr) {
+        while (cnt < nr) {
+            if (virtqueue_get(vq, &events[cnt]) != 0)
+                break;
+            cnt++;
+        }
+        if (cnt >= min)
+            return cnt;
+
+        int ret = virtqueue_wait_callfd(vq, timeout_ms);
+        if (ret == -ETIMEDOUT)
+            return cnt;
+        if (ret < 0)
+            return cnt > 0 ? cnt : -1;
+    }
+    return cnt;
+}
+
 static int libvhost_readwritev(struct libvhost_ctrl* ctrl, int q_idx, uint64_t offset, struct iovec* iov, int iovcnt,
                                enum libvhost_io_type type, bool async, void* opaque) {
     struct libvhost_io_task* task;
@@ -137,8 +159,7 @@ static int libvhost_readwritev(struct libvhost_ctrl* ctrl, int q_idx, uint64_t o
     }
 
     while (task_getevents(vq, 0, 1, &event) == 0) {
-        usleep(100);
-        continue;
+        virtqueue_wait_callfd(vq, 1000);
     }
     return 0;
 }
@@ -168,8 +189,7 @@ static int libvhost_discard_write_zeroes(struct libvhost_ctrl* ctrl, int q_idx,
     blk_task_submit(vq, task);
 
     while (task_getevents(vq, 0, 1, &event) == 0) {
-        usleep(100);
-        continue;
+        virtqueue_wait_callfd(vq, 1000);
     }
     return 0;
 }
@@ -229,6 +249,19 @@ int libvhost_getevents(struct libvhost_ctrl* ctrl, int q_idx, int min, int nr, V
     q_idx = ctrl->type == DEVICE_TYPE_BLK ? q_idx : q_idx + 2;
 
     return task_getevents(&ctrl->vqs[q_idx], min, nr, events);
+}
+
+int libvhost_getevents_interrupt(struct libvhost_ctrl* ctrl, int q_idx, int min, int nr,
+                                  VhostEvent* events) {
+    q_idx = ctrl->type == DEVICE_TYPE_BLK ? q_idx : q_idx + 2;
+    return task_getevents_interrupt(&ctrl->vqs[q_idx], min, nr, events, -1);
+}
+
+int libvhost_get_queue_callfd(struct libvhost_ctrl* ctrl, int q_idx) {
+    q_idx = ctrl->type == DEVICE_TYPE_BLK ? q_idx : q_idx + 2;
+    if (q_idx < 0 || q_idx >= ctrl->nr_vqs)
+        return -1;
+    return ctrl->vqs[q_idx].callfd;
 }
 
 void libvhost_scsi_read_capacity(struct libvhost_ctrl* ctrl) {
